@@ -232,6 +232,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebas
 import {
   getFirestore, collection, doc, getDoc, getDocs, setDoc, deleteDoc
 } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+import {
+  getAuth, signInAnonymously
+} from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
 
 // TODO: troque pelos dados do SEU projeto Firebase
 // (Console do Firebase > Configurações do projeto > Seus apps > Config do SDK)
@@ -245,7 +248,19 @@ const firebaseConfig = {
 };
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+const auth = getAuth(app);
 const COLECAO = "jogadores"; // nome da coleção no Firestore
+
+// Login anônimo: dá a este navegador/aparelho um ID próprio (sem senha, invisível
+// pro usuário). É esse ID que fica gravado como "dono" de cada registro e é o que
+// a regra de segurança do Firestore usa pra decidir quem pode apagar o quê.
+let meuUid = null;
+try{
+  const cred = await signInAnonymously(auth);
+  meuUid = cred.user.uid;
+}catch(e){
+  console.error("Falha no login anônimo:", e);
+}
 
 /* ================= i18n ================= */
 const IDIOMAS = ["pt","en","es","id"];
@@ -280,6 +295,7 @@ const T = {
     vazio:"Nenhum registro ainda. Compartilhe o link com a aliança e comece pelo checkpoint de 15 set.",
     remover:n=>`Remover todos os registros de ${n}?`,
     falhaRem:"Não consegui remover agora. Tente de novo.",
+    semPermissao:"Você só pode remover os seus próprios registros.",
     csvCab:["Jogador","Tipo","15/09/2026","15/10/2026","15/11/2026","Delta","Crescimento %","Abates"]
   },
   en: {
@@ -312,6 +328,7 @@ const T = {
     vazio:"No logs yet. Share the link with the alliance and start with the Sep 15 checkpoint.",
     remover:n=>`Remove all logs for ${n}?`,
     falhaRem:"Couldn't remove right now. Please try again.",
+    semPermissao:"You can only remove your own logs.",
     csvCab:["Player","Type","09/15/2026","10/15/2026","11/15/2026","Delta","Growth %","Kills"]
   },
   es: {
@@ -344,6 +361,7 @@ const T = {
     vazio:"Aún no hay registros. Comparte el enlace con la alianza y empieza por el punto del 15 sep.",
     remover:n=>`¿Eliminar todos los registros de ${n}?`,
     falhaRem:"No pude eliminar ahora. Inténtalo de nuevo.",
+    semPermissao:"Solo puedes eliminar tus propios registros.",
     csvCab:["Jugador","Tipo","15/09/2026","15/10/2026","15/11/2026","Delta","Crecimiento %","Bajas"]
   },
   id: {
@@ -376,6 +394,7 @@ const T = {
     vazio:"Belum ada catatan. Bagikan tautan ke aliansi dan mulai dari titik 15 Sep.",
     remover:n=>`Hapus semua catatan ${n}?`,
     falhaRem:"Tidak bisa menghapus sekarang. Coba lagi.",
+    semPermissao:"Kamu hanya bisa menghapus catatanmu sendiri.",
     csvCab:["Pemain","Jenis","15/09/2026","15/10/2026","15/11/2026","Delta","Pertumbuhan %","Kill"]
   }
 };
@@ -531,7 +550,7 @@ async function salvar(){
   try{
     const chave = slug(nome);
     const ref = doc(db, COLECAO, chave);
-    let dados = { nome, tipo, c1:null, c2:null, c3:null, k1:null, k2:null, k3:null };
+    let dados = { nome, tipo, c1:null, c2:null, c3:null, k1:null, k2:null, k3:null, dono: meuUid };
     try{
       const snap = await getDoc(ref);
       if (snap.exists()) dados = { ...dados, ...snap.data(), nome, tipo };
@@ -566,6 +585,7 @@ async function carregar(forcar){
         chave: docSnap.id, nome: d.nome||docSnap.id, tipo: d.tipo||null,
         c1: d.c1??null, c2: d.c2??null, c3: d.c3??null,
         k1: d.k1??null, k2: d.k2??null, k3: d.k3??null,
+        dono: d.dono||null,
         atualizado: d.atualizado
       });
     });
@@ -631,7 +651,7 @@ function render(){
       ${abatesTxt}
       <td class="${dcls}">${dtxt}</td>
       <td class="${dcls}">${ptxt}</td>
-      <td class="acao"><button title="×" onclick="remover('${j.chave}','${j.nome.replace(/'/g,"\\'")}')">×</button></td>
+      <td class="acao">${j.dono && j.dono===meuUid ? `<button title="×" onclick="remover('${j.chave}','${j.nome.replace(/'/g,"\\'")}')">×</button>` : ""}</td>
     </tr>`;
   }).join("");
 
@@ -685,7 +705,7 @@ async function remover(chave, nome){
     render();
   }catch(e){
     console.error(e);
-    alert(t.falhaRem);
+    alert(e && e.code === "permission-denied" ? t.semPermissao : t.falhaRem);
   }
 }
 
