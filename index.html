@@ -99,9 +99,10 @@
 
   /* ---------- Painel ---------- */
   .resumo{display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:8px;margin-bottom:16px}
-  .resumo .caixa{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:10px}
-  .caixa .num{font-family:var(--disp);font-size:22px;font-weight:700;color:var(--text)}
+  .resumo .caixa{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:10px;min-width:0}
+  .caixa .num{font-family:var(--disp);font-size:22px;font-weight:700;color:var(--text);overflow-wrap:anywhere}
   .caixa .rot{font-size:11.5px;color:var(--dim);margin-top:2px}
+  @media (max-width:380px){ .caixa .num{font-size:18px} }
 
   .podio{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:16px}
   .podio h2{font-family:var(--disp);font-size:16px;font-weight:600;color:var(--teal);margin-bottom:10px}
@@ -489,6 +490,12 @@ function parsePoder(txt){
 }
 function fmtM(n){
   if (n == null) return null;
+  if (Math.abs(n) >= 1e6) return (n/1e6).toLocaleString(t.locale,{minimumFractionDigits:2,maximumFractionDigits:2}) + "M";
+  if (Math.abs(n) >= 1e3) return (n/1e3).toLocaleString(t.locale,{maximumFractionDigits:0}) + "K";
+  return n.toLocaleString(t.locale);
+}
+function fmtAbates(n){
+  if (n == null) return null;
   if (Math.abs(n) >= 1e6) return (n/1e6).toLocaleString(t.locale,{maximumFractionDigits:2}) + "M";
   if (Math.abs(n) >= 1e3) return (n/1e3).toLocaleString(t.locale,{maximumFractionDigits:0}) + "K";
   return n.toLocaleString(t.locale);
@@ -642,7 +649,7 @@ function render(){
     const ptxt = ev && ev.pct!=null ? (ev.pct>=0?"+":"")+ev.pct.toLocaleString(t.locale,{maximumFractionDigits:1})+"%" : "—";
     const tipoTxt = j.tipo && EMOJI[j.tipo]
       ? `<span title="${t.tipos[j.tipo].replace(/^\S+\s/,"")}">${EMOJI[j.tipo]}</span>` : "—";
-    const abatesTxt = cel(ultimoKills(j));
+    const abatesTxt = ultimoKills(j)==null ? `<td class="vazio">—</td>` : `<td>${fmtAbates(ultimoKills(j))}</td>`;
     return `<tr>
       <td class="pos">${i+1}</td>
       <td title="${j.nome.replace(/"/g,"&quot;")}">${j.nome}</td>
@@ -675,7 +682,7 @@ function atualizarResumo(){
   }
   const somaAbates = jogadores.reduce((s,j)=>s+(ultimoKills(j)||0),0);
   const temAbates = jogadores.some(j=>ultimoKills(j)!=null);
-  document.getElementById("r-abates").textContent = temAbates ? fmtM(somaAbates) : "–";
+  document.getElementById("r-abates").textContent = temAbates ? fmtAbates(somaAbates) : "–";
 
   const evs = jogadores.map(evolucao).filter(e=>e && e.pct!=null);
   document.getElementById("r-cresc").textContent = evs.length
